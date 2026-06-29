@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, ChangeEvent } from 'react';
 import { 
   Search, 
   Filter, 
@@ -43,6 +43,8 @@ interface OrderManagementProps {
   onClearSelectedOrderId: () => void;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
   onUpdateOrderTags: (orderId: string, tags: string[]) => void;
+  onBulkUpdateOrderStatus: (orderIds: string[], status: OrderStatus) => void;
+  onBulkUpdateOrderTags: (orderIds: string[], action: 'add' | 'remove', tag: string) => void;
   initialSearchQuery?: string;
 }
 
@@ -53,6 +55,8 @@ export default function OrderManagement({
   onClearSelectedOrderId,
   onUpdateOrderStatus,
   onUpdateOrderTags,
+  onBulkUpdateOrderStatus,
+  onBulkUpdateOrderTags,
   initialSearchQuery = ''
 }: OrderManagementProps) {
   
@@ -63,6 +67,18 @@ export default function OrderManagement({
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
   const [newTagInput, setNewTagInput] = useState('');
+
+  // Bulk Actions states
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [bulkActionView, setBulkActionView] = useState<'main' | 'add-tag' | 'remove-tag' | 'confirm-cancel'>('main');
+  const [bulkTagInput, setBulkTagInput] = useState('');
+
+  // Automatically reset selection states when filters or query change to avoid processing hidden records
+  useEffect(() => {
+    setSelectedOrderIds([]);
+    setBulkActionView('main');
+    setBulkTagInput('');
+  }, [statusFilter, tagFilter, searchQuery]);
 
   useEffect(() => {
     setSearchQuery(initialSearchQuery);
@@ -163,6 +179,39 @@ export default function OrderManagement({
       return matchesSearch && matchesStatus && matchesTag;
     });
   }, [orders, searchQuery, statusFilter, tagFilter]);
+
+  // Multi-selection helper calculations
+  const isAllSelected = useMemo(() => {
+    return filteredOrders.length > 0 && filteredOrders.every(o => selectedOrderIds.includes(o.id));
+  }, [filteredOrders, selectedOrderIds]);
+
+  const isSomeSelected = useMemo(() => {
+    return filteredOrders.some(o => selectedOrderIds.includes(o.id)) && !isAllSelected;
+  }, [filteredOrders, selectedOrderIds, isAllSelected]);
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      // Remove all visible filtered orders from selection
+      const visibleIds = filteredOrders.map(o => o.id);
+      setSelectedOrderIds(prev => prev.filter(id => !visibleIds.includes(id)));
+    } else {
+      // Add all visible filtered orders to selection
+      const visibleIds = filteredOrders.map(o => o.id);
+      setSelectedOrderIds(prev => {
+        const newSet = new Set([...prev, ...visibleIds]);
+        return Array.from(newSet);
+      });
+    }
+  };
+
+  const handleToggleSelectOrder = (orderId: string, e: ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    setSelectedOrderIds(prev => 
+      prev.includes(orderId) 
+        ? prev.filter(id => id !== orderId) 
+        : [...prev, orderId]
+    );
+  };
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -506,6 +555,19 @@ export default function OrderManagement({
           <table className="w-full border-collapse text-left text-sm" id="orders-table">
             <thead>
               <tr className="bg-zinc-50 text-zinc-500 font-semibold border-b border-zinc-100 select-none">
+                <th className="px-5 py-4 w-12 text-center">
+                  <input 
+                    type="checkbox" 
+                    checked={isAllSelected}
+                    ref={(el) => {
+                      if (el) {
+                        el.indeterminate = isSomeSelected;
+                      }
+                    }}
+                    onChange={handleToggleSelectAll}
+                    className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer transition-all"
+                  />
+                </th>
                 <th className="px-5 py-4 text-xs uppercase tracking-wider">Order ID</th>
                 <th className="px-5 py-4 text-xs uppercase tracking-wider">Date & Time</th>
                 <th className="px-5 py-4 text-xs uppercase tracking-wider">Customer Info</th>
@@ -516,16 +578,28 @@ export default function OrderManagement({
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 text-zinc-700">
-              {filteredOrders.map((o) => (
-                <tr 
-                  key={o.id}
-                  onClick={() => setActiveOrder(o)}
-                  className="hover:bg-zinc-50/50 transition-colors cursor-pointer group"
-                  id={`order-row-${o.id}`}
-                >
-                  <td className="px-5 py-4 font-mono font-bold text-zinc-900 text-xs">
-                    {o.id}
-                  </td>
+              {filteredOrders.map((o) => {
+                const isSelected = selectedOrderIds.includes(o.id);
+                return (
+                  <tr 
+                    key={o.id}
+                    onClick={() => setActiveOrder(o)}
+                    className={`hover:bg-zinc-50/50 transition-colors cursor-pointer group ${
+                      isSelected ? 'bg-indigo-50/30 hover:bg-indigo-50/40' : ''
+                    }`}
+                    id={`order-row-${o.id}`}
+                  >
+                    <td className="px-5 py-4 w-12 text-center" onClick={(e) => e.stopPropagation()}>
+                      <input 
+                        type="checkbox" 
+                        checked={isSelected}
+                        onChange={(e) => handleToggleSelectOrder(o.id, e)}
+                        className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer transition-all"
+                      />
+                    </td>
+                    <td className="px-5 py-4 font-mono font-bold text-zinc-900 text-xs">
+                      {o.id}
+                    </td>
                   <td className="px-5 py-4 text-xs text-zinc-500 font-medium">
                     {new Date(o.date).toLocaleDateString(undefined, { 
                       year: 'numeric', 
@@ -582,11 +656,170 @@ export default function OrderManagement({
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}
       </div>
+
+      {/* Floating Bulk Actions Toolbar */}
+      <AnimatePresence>
+        {selectedOrderIds.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.95 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 260 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-zinc-900 text-white shadow-2xl px-5 py-4 rounded-2xl flex flex-col sm:flex-row items-center gap-4 border border-zinc-800 backdrop-blur-md max-w-xl w-[calc(100%-2rem)]"
+            id="bulk-actions-toolbar"
+          >
+            {/* Main view of bulk actions */}
+            {bulkActionView === 'main' && (
+              <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-500 text-[10px] font-bold text-white shadow-sm">
+                    {selectedOrderIds.length}
+                  </span>
+                  <p className="text-xs font-bold text-zinc-100 uppercase tracking-wide">Orders Selected</p>
+                  <button
+                    onClick={() => setSelectedOrderIds([])}
+                    className="text-[10px] font-bold text-zinc-400 hover:text-zinc-200 uppercase tracking-wider underline cursor-pointer"
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBulkActionView('add-tag');
+                      setBulkTagInput('');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-850 hover:bg-zinc-800 text-xs font-bold rounded-xl border border-zinc-750 cursor-pointer transition-all text-indigo-300 hover:text-indigo-200"
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                    Bulk Tag
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkActionView('confirm-cancel')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-950/40 hover:bg-red-950/60 text-xs font-bold rounded-xl border border-red-900/40 cursor-pointer transition-all text-red-300 hover:text-red-200"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    Bulk Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Confirm cancel bulk action */}
+            {bulkActionView === 'confirm-cancel' && (
+              <div className="flex flex-col sm:flex-row items-center justify-between w-full gap-3">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                  <p className="text-xs text-zinc-200 font-medium">
+                    Cancel {selectedOrderIds.length} selected orders? Stock will be replenished automatically.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setBulkActionView('main')}
+                    className="px-2.5 py-1.5 bg-zinc-850 hover:bg-zinc-800 text-[10px] font-bold uppercase rounded-lg text-zinc-300 hover:text-zinc-100 cursor-pointer"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onBulkUpdateOrderStatus(selectedOrderIds, 'Cancelled');
+                      setSelectedOrderIds([]);
+                      setBulkActionView('main');
+                    }}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-[10px] font-bold uppercase rounded-lg text-white cursor-pointer"
+                  >
+                    Yes, Cancel All
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Bulk Tag view */}
+            {bulkActionView === 'add-tag' && (
+              <div className="flex flex-col w-full gap-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Tag className="w-3.5 h-3.5 text-indigo-400" />
+                    <p className="text-xs font-bold text-zinc-100">Add Tag to Selected ({selectedOrderIds.length})</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setBulkActionView('main')}
+                    className="text-zinc-400 hover:text-zinc-200 p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Type custom tag name..."
+                    value={bulkTagInput}
+                    onChange={(e) => setBulkTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (bulkTagInput.trim()) {
+                          onBulkUpdateOrderTags(selectedOrderIds, 'add', bulkTagInput.trim());
+                          setSelectedOrderIds([]);
+                          setBulkActionView('main');
+                        }
+                      }
+                    }}
+                    className="flex-1 px-3 py-1.5 text-xs bg-zinc-800 text-white placeholder-zinc-500 rounded-lg border border-zinc-700 focus:border-indigo-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (bulkTagInput.trim()) {
+                        onBulkUpdateOrderTags(selectedOrderIds, 'add', bulkTagInput.trim());
+                        setSelectedOrderIds([]);
+                        setBulkActionView('main');
+                      }
+                    }}
+                    disabled={!bulkTagInput.trim()}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:hover:bg-indigo-600 text-white text-xs font-semibold rounded-lg cursor-pointer"
+                  >
+                    Apply Tag
+                  </button>
+                </div>
+
+                {/* Suggestions */}
+                <div className="flex flex-wrap gap-1.5 mt-0.5 items-center">
+                  <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider mr-1">Suggestions:</span>
+                  {['Priority', 'Wholesale', 'International', 'Urgent', 'Review Required'].map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        onBulkUpdateOrderTags(selectedOrderIds, 'add', tag);
+                        setSelectedOrderIds([]);
+                        setBulkActionView('main');
+                      }}
+                      className="px-2 py-0.5 text-[10px] font-medium bg-zinc-800 text-zinc-300 hover:bg-zinc-750 rounded-md border border-zinc-700 cursor-pointer"
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Interactive Detail Slide-over Panel */}
       <AnimatePresence>

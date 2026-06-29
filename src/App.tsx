@@ -301,6 +301,65 @@ export default function App() {
     localStorage.setItem('aerotech_orders', JSON.stringify(updated));
   };
 
+  const handleBulkUpdateOrderStatus = (orderIds: string[], status: OrderStatus) => {
+    // 1. Identify newly cancelled orders for stock replenishment
+    const newlyCancelledOrders = orders.filter(
+      o => orderIds.includes(o.id) && status === 'Cancelled' && o.status !== 'Cancelled'
+    );
+
+    // 2. Update order statuses
+    const updatedOrders = orders.map(o => {
+      if (orderIds.includes(o.id)) {
+        return { ...o, status };
+      }
+      return o;
+    });
+    setOrders(updatedOrders);
+    localStorage.setItem('aerotech_orders', JSON.stringify(updatedOrders));
+
+    // 3. Replenish stock if newly cancelled
+    if (newlyCancelledOrders.length > 0) {
+      const updatedProducts = products.map(p => {
+        let addedStock = 0;
+        newlyCancelledOrders.forEach(order => {
+          const matchingItem = order.items.find(item => item.productId === p.id);
+          if (matchingItem) {
+            addedStock += matchingItem.quantity;
+          }
+        });
+        if (addedStock > 0) {
+          return { ...p, stock: p.stock + addedStock };
+        }
+        return p;
+      });
+      setProducts(updatedProducts);
+      localStorage.setItem('aerotech_products', JSON.stringify(updatedProducts));
+    }
+  };
+
+  const handleBulkUpdateOrderTags = (orderIds: string[], action: 'add' | 'remove', tag: string) => {
+    const trimmedTag = tag.trim();
+    if (!trimmedTag) return;
+
+    const updated = orders.map(o => {
+      if (orderIds.includes(o.id)) {
+        const currentTags = o.tags || [];
+        let nextTags = [...currentTags];
+        if (action === 'add') {
+          if (!nextTags.includes(trimmedTag)) {
+            nextTags.push(trimmedTag);
+          }
+        } else if (action === 'remove') {
+          nextTags = nextTags.filter(t => t !== trimmedTag);
+        }
+        return { ...o, tags: nextTags };
+      }
+      return o;
+    });
+    setOrders(updated);
+    localStorage.setItem('aerotech_orders', JSON.stringify(updated));
+  };
+
   // Add customer
   const handleAddCustomer = (newCust: Omit<Customer, 'id' | 'totalOrders' | 'totalSpend'>) => {
     const id = `cust-${Date.now()}`;
@@ -774,6 +833,8 @@ export default function App() {
                   onClearSelectedOrderId={handleClearSelectedOrderId}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
                   onUpdateOrderTags={handleUpdateOrderTags}
+                  onBulkUpdateOrderStatus={handleBulkUpdateOrderStatus}
+                  onBulkUpdateOrderTags={handleBulkUpdateOrderTags}
                   initialSearchQuery={globalOrderSearch}
                 />
               )}
