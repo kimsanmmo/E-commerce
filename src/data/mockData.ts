@@ -191,7 +191,8 @@ export const INITIAL_ORDERS: Order[] = [
     date: '2026-06-28T14:30:00Z',
     total: 399.99, // price + tax/shipping
     paymentMethod: 'Credit Card',
-    shippingAddress: '456 Redwood Ave, San Francisco, CA 94107'
+    shippingAddress: '456 Redwood Ave, San Francisco, CA 94107',
+    tags: ['Priority', 'International']
   },
   {
     id: 'ORD-9192',
@@ -215,7 +216,8 @@ export const INITIAL_ORDERS: Order[] = [
     date: '2026-06-25T09:15:00Z',
     total: 204.98,
     paymentMethod: 'PayPal',
-    shippingAddress: '789 Oak Lane, Seattle, WA 98101'
+    shippingAddress: '789 Oak Lane, Seattle, WA 98101',
+    tags: ['Wholesale']
   },
   {
     id: 'ORD-9181',
@@ -233,7 +235,8 @@ export const INITIAL_ORDERS: Order[] = [
     date: '2026-06-29T10:00:00Z',
     total: 284.99,
     paymentMethod: 'Apple Pay',
-    shippingAddress: '122 Maple St, Boston, MA 02108'
+    shippingAddress: '122 Maple St, Boston, MA 02108',
+    tags: ['Priority']
   },
   {
     id: 'ORD-9170',
@@ -257,7 +260,8 @@ export const INITIAL_ORDERS: Order[] = [
     date: '2026-06-29T12:45:00Z',
     total: 257.50,
     paymentMethod: 'Credit Card',
-    shippingAddress: '101 Pine Rd, Austin, TX 78701'
+    shippingAddress: '101 Pine Rd, Austin, TX 78701',
+    tags: []
   },
   {
     id: 'ORD-9162',
@@ -275,7 +279,8 @@ export const INITIAL_ORDERS: Order[] = [
     date: '2026-06-20T16:20:00Z',
     total: 1259.98,
     paymentMethod: 'Bank Transfer',
-    shippingAddress: '456 Redwood Ave, San Francisco, CA 94107'
+    shippingAddress: '456 Redwood Ave, San Francisco, CA 94107',
+    tags: ['Wholesale', 'International']
   }
 ];
 

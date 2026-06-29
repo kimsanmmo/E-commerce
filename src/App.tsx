@@ -290,6 +290,17 @@ export default function App() {
     }
   };
 
+  const handleUpdateOrderTags = (orderId: string, tags: string[]) => {
+    const updated = orders.map(o => {
+      if (o.id === orderId) {
+        return { ...o, tags };
+      }
+      return o;
+    });
+    setOrders(updated);
+    localStorage.setItem('aerotech_orders', JSON.stringify(updated));
+  };
+
   // Add customer
   const handleAddCustomer = (newCust: Omit<Customer, 'id' | 'totalOrders' | 'totalSpend'>) => {
     const id = `cust-${Date.now()}`;
@@ -762,6 +773,7 @@ export default function App() {
                   selectedOrderId={selectedOrderId}
                   onClearSelectedOrderId={handleClearSelectedOrderId}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
+                  onUpdateOrderTags={handleUpdateOrderTags}
                   initialSearchQuery={globalOrderSearch}
                 />
               )}

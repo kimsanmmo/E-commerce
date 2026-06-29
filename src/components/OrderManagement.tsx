@@ -21,10 +21,20 @@ import {
   X,
   TrendingUp,
   DollarSign,
-  Download
+  Download,
+  Tag
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Order, OrderStatus, StoreSettings } from '../types';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell
+} from 'recharts';
 
 interface OrderManagementProps {
   orders: Order[];
@@ -32,6 +42,7 @@ interface OrderManagementProps {
   selectedOrderId: string | null;
   onClearSelectedOrderId: () => void;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
+  onUpdateOrderTags: (orderId: string, tags: string[]) => void;
   initialSearchQuery?: string;
 }
 
@@ -41,21 +52,71 @@ export default function OrderManagement({
   selectedOrderId,
   onClearSelectedOrderId,
   onUpdateOrderStatus,
+  onUpdateOrderTags,
   initialSearchQuery = ''
 }: OrderManagementProps) {
   
   // States
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [statusFilter, setStatusFilter] = useState<'All' | OrderStatus>('All');
+  const [tagFilter, setTagFilter] = useState<string>('All');
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+  const [newTagInput, setNewTagInput] = useState('');
 
   useEffect(() => {
     setSearchQuery(initialSearchQuery);
     if (initialSearchQuery) {
       setStatusFilter('All');
+      setTagFilter('All');
     }
   }, [initialSearchQuery]);
+
+  // Extract all unique tags across all orders
+  const allUniqueTags = useMemo(() => {
+    const tagsSet = new Set<string>();
+    orders.forEach(o => {
+      if (o.tags) {
+        o.tags.forEach(t => {
+          if (t.trim()) {
+            tagsSet.add(t.trim());
+          }
+        });
+      }
+    });
+    return Array.from(tagsSet).sort();
+  }, [orders]);
+
+  // Hourly Order Frequency Calculation
+  const hourlyData = useMemo(() => {
+    const data = Array.from({ length: 24 }, (_, i) => ({
+      hour: i,
+      displayLabel: `${i === 0 ? 12 : i > 12 ? i - 12 : i} ${i >= 12 ? 'PM' : 'AM'}`,
+      orders: 0
+    }));
+
+    orders.forEach(o => {
+      try {
+        const dateObj = new Date(o.date);
+        const hr = dateObj.getHours();
+        if (hr >= 0 && hr < 24) {
+          data[hr].orders += 1;
+        }
+      } catch (e) {
+        console.error("Failed to parse order date for hourly chart:", e);
+      }
+    });
+
+    return data;
+  }, [orders]);
+
+  const formatHourTick = (hour: number) => {
+    if (hour === 0) return '12 AM';
+    if (hour === 6) return '6 AM';
+    if (hour === 12) return '12 PM';
+    if (hour === 18) return '6 PM';
+    return '';
+  };
 
   // Sync selectedOrderId from Dashboard click
   useEffect(() => {
@@ -71,7 +132,20 @@ export default function OrderManagement({
   const handleCloseDetail = () => {
     setActiveOrder(null);
     setIsInvoiceOpen(false);
+    setNewTagInput('');
     onClearSelectedOrderId();
+  };
+
+  const handleAddCustomTag = () => {
+    if (!newTagInput.trim() || !activeOrder) return;
+    const tag = newTagInput.trim();
+    const currentTags = activeOrder.tags || [];
+    if (!currentTags.includes(tag)) {
+      const newTags = [...currentTags, tag];
+      onUpdateOrderTags(activeOrder.id, newTags);
+      setActiveOrder({ ...activeOrder, tags: newTags });
+    }
+    setNewTagInput('');
   };
 
   // 1. Filter Orders
@@ -79,13 +153,16 @@ export default function OrderManagement({
     return orders.filter(o => {
       const matchesSearch = o.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
                             o.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            o.customerEmail.toLowerCase().includes(searchQuery.toLowerCase());
+                            o.customerEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (o.tags && o.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())));
       
       const matchesStatus = statusFilter === 'All' || o.status === statusFilter;
       
-      return matchesSearch && matchesStatus;
+      const matchesTag = tagFilter === 'All' || (o.tags && o.tags.includes(tagFilter));
+      
+      return matchesSearch && matchesStatus && matchesTag;
     });
-  }, [orders, searchQuery, statusFilter]);
+  }, [orders, searchQuery, statusFilter, tagFilter]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -237,7 +314,7 @@ export default function OrderManagement({
       </div>
 
       {/* Financial Summary Indicators */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4" id="order-financial-summary">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="order-financial-summary">
         <div className="bg-white border border-zinc-150 rounded-2xl p-5 flex items-center justify-between shadow-3xs">
           <div>
             <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
@@ -271,6 +348,62 @@ export default function OrderManagement({
             <DollarSign className="w-6 h-6" />
           </div>
         </div>
+
+        {/* Hourly Peak Order Times Bar Chart Card */}
+        <div className="bg-white border border-zinc-150 rounded-2xl p-5 shadow-3xs flex flex-col justify-between" id="hourly-peak-order-times-card">
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+                Peak Order Times (Hourly)
+              </span>
+              <p className="text-[10px] text-zinc-400 mt-0.5">
+                Hourly checkout frequency across all store orders
+              </p>
+            </div>
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+              <Clock className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="w-full h-[64px] mt-1">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={hourlyData} margin={{ top: 2, right: 2, left: -32, bottom: 0 }}>
+                <XAxis 
+                  dataKey="hour" 
+                  tickFormatter={formatHourTick} 
+                  ticks={[0, 6, 12, 18]} 
+                  stroke="#a1a1aa" 
+                  fontSize={8} 
+                  tickLine={false} 
+                  axisLine={false} 
+                />
+                <YAxis 
+                  stroke="#a1a1aa" 
+                  fontSize={8} 
+                  tickLine={false} 
+                  axisLine={false} 
+                  allowDecimals={false} 
+                />
+                <Tooltip 
+                  cursor={{ fill: '#f4f4f5', opacity: 0.4 }}
+                  formatter={(value: any, name: any, props: any) => [
+                    `${value} ${value === 1 ? 'order' : 'orders'}`, 
+                    props.payload.displayLabel
+                  ]}
+                  contentStyle={{ backgroundColor: '#18181b', borderRadius: '6px', border: 'none', color: '#fff', fontSize: '10px', padding: '4px 8px' }}
+                  labelStyle={{ display: 'none' }}
+                />
+                <Bar dataKey="orders" fill="#4f46e5" radius={[2, 2, 0, 0]}>
+                  {hourlyData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.orders > 0 ? '#4f46e5' : '#e4e4e7'} 
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -292,14 +425,14 @@ export default function OrderManagement({
           </div>
 
           {/* Status Filter Dropdown */}
-          <div className="relative w-full sm:w-48">
+          <div className="relative w-full sm:w-44">
             <span className="absolute inset-y-0 left-3 flex items-center text-zinc-400 pointer-events-none">
               <Filter className="w-4 h-4 text-zinc-400" />
             </span>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="w-full pl-9 pr-10 py-2 text-sm bg-zinc-50 hover:bg-zinc-100/50 focus:bg-white text-zinc-800 border border-zinc-200 focus:border-indigo-500 rounded-xl focus:outline-none transition-all cursor-pointer font-semibold appearance-none"
+              className="w-full pl-9 pr-10 py-2 text-xs bg-zinc-50 hover:bg-zinc-100/50 focus:bg-white text-zinc-800 border border-zinc-200 focus:border-indigo-500 rounded-xl focus:outline-none transition-all cursor-pointer font-semibold appearance-none"
               id="order-status-filter-dropdown"
             >
               <option value="All">All Statuses</option>
@@ -308,6 +441,27 @@ export default function OrderManagement({
               <option value="Shipped">Shipped</option>
               <option value="Delivered">Delivered</option>
               <option value="Cancelled">Cancelled</option>
+            </select>
+            <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 pointer-events-none">
+              <ChevronRight className="w-4 h-4 rotate-90" />
+            </span>
+          </div>
+
+          {/* Tag Filter Dropdown */}
+          <div className="relative w-full sm:w-44">
+            <span className="absolute inset-y-0 left-3 flex items-center text-zinc-400 pointer-events-none">
+              <Tag className="w-3.5 h-3.5 text-zinc-400" />
+            </span>
+            <select
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value)}
+              className="w-full pl-9 pr-10 py-2 text-xs bg-zinc-50 hover:bg-zinc-100/50 focus:bg-white text-zinc-800 border border-zinc-200 focus:border-indigo-500 rounded-xl focus:outline-none transition-all cursor-pointer font-semibold appearance-none"
+              id="order-tag-filter-dropdown"
+            >
+              <option value="All">All Tags</option>
+              {allUniqueTags.map(tag => (
+                <option key={tag} value={tag}>{tag}</option>
+              ))}
             </select>
             <span className="absolute inset-y-0 right-3 flex items-center text-zinc-400 pointer-events-none">
               <ChevronRight className="w-4 h-4 rotate-90" />
@@ -384,6 +538,18 @@ export default function OrderManagement({
                   <td className="px-5 py-4">
                     <p className="font-bold text-zinc-900 text-xs">{o.customerName}</p>
                     <p className="text-[10px] text-zinc-400 truncate max-w-[150px] mt-0.5">{o.customerEmail}</p>
+                    {o.tags && o.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5 max-w-[180px]">
+                        {o.tags.map(tag => (
+                          <span 
+                            key={tag} 
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-bold bg-zinc-100 text-zinc-700 border border-zinc-200/60 rounded"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="px-5 py-4 font-bold text-zinc-900 font-mono">
                     {formatCurrency(o.total)}
@@ -578,6 +744,93 @@ export default function OrderManagement({
                           <span className="text-zinc-500">{activeOrder.paymentMethod}</span>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Custom Labels / Tag Management */}
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-zinc-800 uppercase tracking-wide">Custom Labels & Tags</h4>
+                  <div className="border border-zinc-150 rounded-2xl p-4 space-y-4 bg-zinc-50/30">
+                    {/* List of current tags */}
+                    <div className="flex flex-wrap gap-1.5 min-h-[28px] items-center">
+                      {(!activeOrder.tags || activeOrder.tags.length === 0) ? (
+                        <p className="text-xs text-zinc-400 italic">No tags applied to this order yet.</p>
+                      ) : (
+                        activeOrder.tags.map(tag => (
+                          <span 
+                            key={tag} 
+                            className="inline-flex items-center gap-1 pl-2 pr-1.5 py-1 text-xs font-bold bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg"
+                          >
+                            {tag}
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const newTags = activeOrder.tags?.filter(t => t !== tag) || [];
+                                onUpdateOrderTags(activeOrder.id, newTags);
+                                setActiveOrder(prev => prev ? { ...prev, tags: newTags } : null);
+                              }}
+                              className="text-indigo-400 hover:text-indigo-600 rounded-full hover:bg-indigo-100 p-0.5 transition-all cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Pre-suggested tags / quick tags */}
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Quick Suggestions</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {['Priority', 'Wholesale', 'International', 'Urgent', 'New Client', 'Review Required'].map(suggestedTag => {
+                          const isApplied = activeOrder.tags?.includes(suggestedTag);
+                          return (
+                            <button
+                              key={suggestedTag}
+                              type="button"
+                              disabled={isApplied}
+                              onClick={() => {
+                                const currentTags = activeOrder.tags || [];
+                                const newTags = [...currentTags, suggestedTag];
+                                onUpdateOrderTags(activeOrder.id, newTags);
+                                setActiveOrder(prev => prev ? { ...prev, tags: newTags } : null);
+                              }}
+                              className={`px-2 py-1 text-[11px] font-semibold rounded-lg border transition-all cursor-pointer ${
+                                isApplied 
+                                  ? 'bg-zinc-100 border-zinc-200 text-zinc-400 cursor-not-allowed opacity-50' 
+                                  : 'bg-white border-zinc-200 hover:border-indigo-400 hover:text-indigo-600 text-zinc-600'
+                              }`}
+                            >
+                              + {suggestedTag}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Custom tag input */}
+                    <div className="pt-2 border-t border-zinc-100 flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Type custom tag..."
+                        value={newTagInput}
+                        onChange={(e) => setNewTagInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddCustomTag();
+                          }
+                        }}
+                        className="flex-1 px-3 py-1.5 text-xs bg-white text-zinc-800 border border-zinc-200 focus:border-indigo-500 rounded-lg focus:outline-none placeholder:text-zinc-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddCustomTag}
+                        className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-850 text-white rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                      >
+                        Add Tag
+                      </button>
                     </div>
                   </div>
                 </div>

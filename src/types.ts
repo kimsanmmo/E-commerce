@@ -30,6 +30,7 @@ export interface Order {
   total: number;
   paymentMethod: string;
   shippingAddress: string;
+  tags?: string[];
 }
 
 export interface Customer {
