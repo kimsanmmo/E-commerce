@@ -1,0 +1,48 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-zinc-150: #ededf2;
+  --color-zinc-250: #d4d4d8;
+}
+
+:root {
+  --chart-grid: #f4f4f5;
+  --chart-axis: #a1a1aa;
+}
+
+/* Dark mode semantic overrides */
+.dark {
+  --chart-grid: #27272a;
+  --chart-axis: #71717a;
+
+  /* Invert all light-theme zinc shades to premium dark-theme counterparts */
+  --color-white: #0f0f11;      /* Deep obsidian card background */
+  --color-zinc-50: #09090b;    /* Base slate dark background */
+  --color-zinc-100: #1b1b1f;   /* Muted dividers and subtle buttons */
+  --color-zinc-150: #242429;   /* Standard borders and card containers */
+  --color-zinc-200: #2a2a30;   /* Interactive element outlines */
+  --color-zinc-250: #33333a;   /* Input and form control borders */
+  --color-zinc-300: #42424b;   /* Focus indicators and active buttons */
+  --color-zinc-400: #a1a1aa;   /* Muted/secondary text label color */
+  --color-zinc-500: #b5b5be;   /* Regular description text */
+  --color-zinc-700: #e4e4e7;   /* Primary body text color */
+  --color-zinc-800: #f4f4f5;   /* Strong visual text */
+  --color-zinc-900: #ffffff;   /* Pure white headings and highlights */
+  --color-zinc-950: #ffffff;   /* Full white icons and overlays */
+}
+
+@utility animate-reverse-spin {
+  animation: reverse-spin 1s linear infinite;
+}
+
+@keyframes reverse-spin {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}

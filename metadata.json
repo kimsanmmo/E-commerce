@@ -1,0 +1,6 @@
+{
+  "name": "E-Commerce System Panel",
+  "description": "A high-fidelity administrative panel for managing products, monitoring real-time orders, tracking customer spending, and analyzing store revenue analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
