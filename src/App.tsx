@@ -301,6 +301,17 @@ export default function App() {
     localStorage.setItem('aerotech_orders', JSON.stringify(updated));
   };
 
+  const handleUpdateOrderNotes = (orderId: string, notes: string[]) => {
+    const updated = orders.map(o => {
+      if (o.id === orderId) {
+        return { ...o, notes };
+      }
+      return o;
+    });
+    setOrders(updated);
+    localStorage.setItem('aerotech_orders', JSON.stringify(updated));
+  };
+
   const handleBulkUpdateOrderStatus = (orderIds: string[], status: OrderStatus) => {
     // 1. Identify newly cancelled orders for stock replenishment
     const newlyCancelledOrders = orders.filter(
@@ -833,6 +844,7 @@ export default function App() {
                   onClearSelectedOrderId={handleClearSelectedOrderId}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
                   onUpdateOrderTags={handleUpdateOrderTags}
+                  onUpdateOrderNotes={handleUpdateOrderNotes}
                   onBulkUpdateOrderStatus={handleBulkUpdateOrderStatus}
                   onBulkUpdateOrderTags={handleBulkUpdateOrderTags}
                   initialSearchQuery={globalOrderSearch}

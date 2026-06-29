@@ -31,6 +31,7 @@ export interface Order {
   paymentMethod: string;
   shippingAddress: string;
   tags?: string[];
+  notes?: string[];
 }
 
 export interface Customer {

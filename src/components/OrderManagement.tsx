@@ -22,7 +22,9 @@ import {
   TrendingUp,
   DollarSign,
   Download,
-  Tag
+  Tag,
+  Trash2,
+  StickyNote
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Order, OrderStatus, StoreSettings } from '../types';
@@ -43,6 +45,7 @@ interface OrderManagementProps {
   onClearSelectedOrderId: () => void;
   onUpdateOrderStatus: (orderId: string, status: OrderStatus) => void;
   onUpdateOrderTags: (orderId: string, tags: string[]) => void;
+  onUpdateOrderNotes: (orderId: string, notes: string[]) => void;
   onBulkUpdateOrderStatus: (orderIds: string[], status: OrderStatus) => void;
   onBulkUpdateOrderTags: (orderIds: string[], action: 'add' | 'remove', tag: string) => void;
   initialSearchQuery?: string;
@@ -55,6 +58,7 @@ export default function OrderManagement({
   onClearSelectedOrderId,
   onUpdateOrderStatus,
   onUpdateOrderTags,
+  onUpdateOrderNotes,
   onBulkUpdateOrderStatus,
   onBulkUpdateOrderTags,
   initialSearchQuery = ''
@@ -67,6 +71,7 @@ export default function OrderManagement({
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
   const [newTagInput, setNewTagInput] = useState('');
+  const [newNoteInput, setNewNoteInput] = useState('');
 
   // Bulk Actions states
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
@@ -149,6 +154,7 @@ export default function OrderManagement({
     setActiveOrder(null);
     setIsInvoiceOpen(false);
     setNewTagInput('');
+    setNewNoteInput('');
     onClearSelectedOrderId();
   };
 
@@ -162,6 +168,24 @@ export default function OrderManagement({
       setActiveOrder({ ...activeOrder, tags: newTags });
     }
     setNewTagInput('');
+  };
+
+  const handleAddPrivateNote = () => {
+    if (!newNoteInput.trim() || !activeOrder) return;
+    const note = newNoteInput.trim();
+    const currentNotes = activeOrder.notes || [];
+    const newNotes = [...currentNotes, note];
+    onUpdateOrderNotes(activeOrder.id, newNotes);
+    setActiveOrder({ ...activeOrder, notes: newNotes });
+    setNewNoteInput('');
+  };
+
+  const handleRemovePrivateNote = (indexToRemove: number) => {
+    if (!activeOrder) return;
+    const currentNotes = activeOrder.notes || [];
+    const newNotes = currentNotes.filter((_, idx) => idx !== indexToRemove);
+    onUpdateOrderNotes(activeOrder.id, newNotes);
+    setActiveOrder({ ...activeOrder, notes: newNotes });
   };
 
   // 1. Filter Orders
@@ -1063,6 +1087,70 @@ export default function OrderManagement({
                         className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-850 text-white rounded-lg text-xs font-semibold transition-all cursor-pointer"
                       >
                         Add Tag
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Internal Reference Notes */}
+                <div className="space-y-3" id="internal-notes-section">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-zinc-800 uppercase tracking-wide">Internal Notes</h4>
+                    <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-semibold">
+                      Private Staff Reference
+                    </span>
+                  </div>
+                  <div className="border border-zinc-150 rounded-2xl p-4 space-y-4 bg-zinc-50/30">
+                    {/* List of notes */}
+                    <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+                      {(!activeOrder.notes || activeOrder.notes.length === 0) ? (
+                        <p className="text-xs text-zinc-400 italic py-2">No internal reference notes added yet.</p>
+                      ) : (
+                        activeOrder.notes.map((note, index) => (
+                          <div 
+                            key={index}
+                            className="bg-white border border-zinc-150 rounded-xl p-3 flex items-start justify-between gap-3 shadow-3xs hover:border-zinc-200 transition-all"
+                          >
+                            <div className="flex items-start gap-2 min-w-0">
+                              <StickyNote className="w-3.5 h-3.5 text-zinc-400 shrink-0 mt-0.5" />
+                              <p className="text-xs text-zinc-700 leading-relaxed font-medium break-words">
+                                {note}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePrivateNote(index)}
+                              className="text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 p-1 transition-all cursor-pointer shrink-0"
+                              title="Delete note"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Add note input form */}
+                    <div className="pt-2 border-t border-zinc-100 flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Add a private comment or staff note..."
+                        value={newNoteInput}
+                        onChange={(e) => setNewNoteInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddPrivateNote();
+                          }
+                        }}
+                        className="flex-1 px-3 py-1.5 text-xs bg-white text-zinc-800 border border-zinc-200 focus:border-indigo-500 rounded-lg focus:outline-none placeholder:text-zinc-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddPrivateNote}
+                        className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-850 text-white rounded-lg text-xs font-semibold transition-all cursor-pointer shrink-0"
+                      >
+                        Add Note
                       </button>
                     </div>
                   </div>
